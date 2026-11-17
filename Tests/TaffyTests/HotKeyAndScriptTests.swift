@@ -39,11 +39,31 @@ final class ScriptsTests: XCTestCase {
 
         let arc = Scripts.activate(browser(.arc))
         XCTAssertTrue(arc.contains("tell tab tidx of w to select"))
+
+        let ghostty = Scripts.activate(browser(.ghostty))
+        XCTAssertTrue(ghostty.contains("select tab (tab tidx of w)"))
+        XCTAssertTrue(ghostty.contains("activate window w"))
+        XCTAssertFalse(ghostty.contains("widText as integer"), "Ghostty window ids are text")
+
+        let terminal = Scripts.activate(browser(.appleTerminal))
+        XCTAssertTrue(terminal.contains("set selected of tab tidx of w to true"))
+    }
+
+    func testTerminalTabsAreNotClosed() {
+        XCTAssertNil(Scripts.close(browser(.ghostty)))
+        XCTAssertNil(Scripts.close(browser(.appleTerminal)))
+        XCTAssertNotNil(Scripts.close(browser(.chromium)))
+    }
+
+    func testEveryKindHasAFetchScript() {
+        XCTAssertTrue(Scripts.fetchTabs(for: .ghostty).contains("workingDirectory"))
+        XCTAssertTrue(Scripts.fetchTabs(for: .appleTerminal).contains("tty"))
+        XCTAssertEqual(Scripts.fetchTabs(for: .safari), Scripts.fetchBrowserTabs)
     }
 
     func testScriptsAreWellFormed() {
-        for kind in [BrowserKind.chromium, .safari, .arc] {
-            for script in [Scripts.activate(browser(kind)), Scripts.close(browser(kind))] {
+        for kind in [BrowserKind.chromium, .safari, .arc, .ghostty, .appleTerminal] {
+            for script in [Scripts.activate(browser(kind)), Scripts.close(browser(kind))].compactMap({ $0 }) {
                 XCTAssertTrue(script.hasPrefix("on run argv"))
                 XCTAssertTrue(script.hasSuffix("end run"))
                 XCTAssertEqual(script.components(separatedBy: "tell application id").count, 2)
@@ -57,7 +77,7 @@ final class ScriptsTests: XCTestCase {
         var compiled = 0
         for browser in Browser.all
         where NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) != nil {
-            for script in [Scripts.activate(browser), Scripts.close(browser)] {
+            for script in [Scripts.activate(browser), Scripts.close(browser)].compactMap({ $0 }) {
                 let out = FileManager.default.temporaryDirectory
                     .appendingPathComponent(UUID().uuidString + ".scpt")
                 let process = Process()
@@ -70,6 +90,6 @@ final class ScriptsTests: XCTestCase {
                 compiled += 1
             }
         }
-        if compiled == 0 { throw XCTSkip("no supported browser installed") }
+        if compiled == 0 { throw XCTSkip("no supported app installed") }
     }
 }

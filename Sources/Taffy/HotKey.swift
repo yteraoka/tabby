@@ -56,12 +56,15 @@ struct HotKeySpec {
 }
 
 /// A system-wide hot key registered through the Carbon event API.
+/// Several can be registered; each needs its own `id`.
 final class HotKey {
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
+    private let id: UInt32
     private let action: () -> Void
 
-    init?(spec: HotKeySpec, action: @escaping () -> Void) {
+    init?(spec: HotKeySpec, id: UInt32 = 1, action: @escaping () -> Void) {
+        self.id = id
         self.action = action
 
         var eventType = EventTypeSpec(eventClass: OSType(kEventClassKeyboard),
@@ -69,16 +72,26 @@ final class HotKey {
         let userData = Unmanaged.passUnretained(self).toOpaque()
         let installStatus = InstallEventHandler(
             GetApplicationEventTarget(),
-            { _, _, userData -> OSStatus in
-                guard let userData else { return noErr }
-                Unmanaged<HotKey>.fromOpaque(userData).takeUnretainedValue().action()
+            { _, event, userData -> OSStatus in
+                guard let event, let userData else { return OSStatus(eventNotHandledErr) }
+                var pressed = EventHotKeyID()
+                let status = GetEventParameter(event, EventParamName(kEventParamDirectObject),
+                                               EventParamType(typeEventHotKeyID), nil,
+                                               MemoryLayout<EventHotKeyID>.size, nil, &pressed)
+                let hotKey = Unmanaged<HotKey>.fromOpaque(userData).takeUnretainedValue()
+                // Every registered hot key reaches every handler; let the others
+                // handle presses that aren't ours.
+                guard status == noErr, pressed.id == hotKey.id else {
+                    return OSStatus(eventNotHandledErr)
+                }
+                hotKey.action()
                 return noErr
             },
             1, &eventType, userData, &handlerRef
         )
         guard installStatus == noErr else { return nil }
 
-        let hotKeyID = EventHotKeyID(signature: OSType(0x5441_4659), id: 1) // 'TAFY'
+        let hotKeyID = EventHotKeyID(signature: OSType(0x5441_4659), id: id) // 'TAFY'
         let registerStatus = RegisterEventHotKey(spec.keyCode, spec.modifiers, hotKeyID,
                                                  GetApplicationEventTarget(), 0, &hotKeyRef)
         guard registerStatus == noErr else {

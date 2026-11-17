@@ -7,6 +7,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var panelController: SearchPanelController!
     private var hotKey: HotKey?
     private var hotKeyDisplay = ""
+    private var terminalHotKey: HotKey?
+    private var terminalHotKeyDisplay = ""
     private let launchAtLoginItem = NSMenuItem(title: "Launch at Login",
                                                action: #selector(toggleLaunchAtLogin(_:)),
                                                keyEquivalent: "")
@@ -40,6 +42,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             hotKeyDisplay = spec.display
         }
+
+        // Optional second hot key that opens the panel on terminal tabs.
+        guard let terminalConfigured = UserDefaults.standard.string(forKey: "terminalHotkey") else { return }
+        guard let terminalSpec = HotKeySpec.parse(terminalConfigured) else {
+            NSLog("Taffy: invalid terminalHotkey %@", terminalConfigured)
+            return
+        }
+        terminalHotKey = HotKey(spec: terminalSpec, id: 2) {
+            Task { @MainActor in controller.toggle(mode: .terminal) }
+        }
+        if terminalHotKey == nil {
+            NSLog("Taffy: could not register terminalHotkey %@ (already in use?)", terminalSpec.display)
+        } else {
+            terminalHotKeyDisplay = terminalSpec.display
+        }
     }
 
     private func setUpStatusItem() {
@@ -58,6 +75,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let searchItem = NSMenuItem(title: searchTitle, action: #selector(showSearch(_:)), keyEquivalent: "")
         searchItem.target = self
         menu.addItem(searchItem)
+        let terminalTitle = terminalHotKeyDisplay.isEmpty
+            ? "Search Terminal Tabs"
+            : "Search Terminal Tabs  (\(terminalHotKeyDisplay))"
+        let terminalItem = NSMenuItem(title: terminalTitle, action: #selector(showTerminalSearch(_:)),
+                                      keyEquivalent: "")
+        terminalItem.target = self
+        menu.addItem(terminalItem)
         menu.addItem(.separator())
 
         mediaIndicatorsItem.target = self
@@ -83,7 +107,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     @objc private func showSearch(_ sender: Any?) {
-        panelController.show()
+        panelController.show(mode: .browser)
+    }
+
+    @objc private func showTerminalSearch(_ sender: Any?) {
+        panelController.show(mode: .terminal)
     }
 
     /// Asks for the Accessibility permission, or opens its settings pane when
