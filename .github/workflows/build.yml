@@ -1,0 +1,21 @@
+name: build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Tabby.app
+        env:
+          UNIVERSAL: "1"
+        run: ./scripts/build-app.sh
+      - name: Package
+        run: cd build && ditto -c -k --keepParent Tabby.app Tabby.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Tabby
+          path: build/Tabby.zip
