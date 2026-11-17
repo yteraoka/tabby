@@ -48,6 +48,7 @@ jobs:
         run: |
           brew update --quiet
           brew tap-new --no-git local/taffy
+          brew trust local/taffy
           tap_dir="$(brew --repository)/Library/Taps/local/homebrew-taffy"
           mkdir -p "${tap_dir}/Casks"
           scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${tap_dir}/Casks/taffy.rb"
