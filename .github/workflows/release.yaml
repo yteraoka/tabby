@@ -1,0 +1,97 @@
+name: Release
+
+# ブランチへの push ではビルドだけを行い、v* タグの push で Release と Homebrew の cask を更新する
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Show Swift version
+        run: swift --version
+
+      # ad-hoc 署名のユニバーサルな zip を作る（Homebrew の cask で配布するため、公証は不要）
+      - name: Build release zip
+        id: build
+        run: |
+          version="$(sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Taffy/Version.swift)"
+          if [[ "${GITHUB_REF}" == refs/tags/* && "v${version}" != "${GITHUB_REF_NAME}" ]]; then
+            echo "::error::タグ ${GITHUB_REF_NAME} と Version.swift の ${version} が一致しません"
+            exit 1
+          fi
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          scripts/release.sh "${version}"
+
+      - name: Check cask template
+        run: |
+          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${RUNNER_TEMP}/taffy.rb"
+          ruby -c "${RUNNER_TEMP}/taffy.rb"
+          cat "${RUNNER_TEMP}/taffy.rb"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Taffy
+          path: ${{ steps.build.outputs.zip }}
+
+      # GitHub App から一時的なトークンを生成（taffy の Release と tap の更新に使う）
+      - name: Generate Token
+        if: startsWith(github.ref, 'refs/tags/')
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.HOMEBREW_APP_ID }}
+          private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            taffy
+            homebrew-cask
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          ZIP: ${{ steps.build.outputs.zip }}
+        run: |
+          # tagpr が Release を作っていればファイルを追加し、なければ作る
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" "${ZIP}" "${ZIP}.sha256" --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" "${ZIP}" "${ZIP}.sha256" --title "${GITHUB_REF_NAME}" --generate-notes
+          fi
+
+      - name: Update Homebrew cask
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+          VERSION: ${{ steps.build.outputs.version }}
+          SHA256: ${{ steps.build.outputs.sha256 }}
+          TAP: ${{ github.repository_owner }}/homebrew-cask
+        run: |
+          tap_dir="${RUNNER_TEMP}/tap"
+          git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP}.git" "${tap_dir}"
+          mkdir -p "${tap_dir}/Casks"
+          scripts/cask.sh "${VERSION}" "${SHA256}" > "${tap_dir}/Casks/taffy.rb"
+          cd "${tap_dir}"
+          if git diff --quiet -- Casks/taffy.rb && ! git ls-files --others --exclude-standard | grep -q .; then
+            echo "cask に変更はありません"
+            exit 0
+          fi
+          bot_id="$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)"
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
+          git add Casks/taffy.rb
+          git commit -m "Brew cask update for taffy version v${VERSION}"
+          git push origin HEAD
