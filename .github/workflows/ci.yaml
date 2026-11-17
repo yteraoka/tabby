@@ -41,10 +41,23 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           scripts/release.sh "${version}"
 
+      # 最新の Homebrew で cask を読み込み、非推奨の書き方などの警告が出ないことを確認する
       - name: Check cask template
+        env:
+          HOMEBREW_NO_INSTALL_FROM_API: "1"
+          HOMEBREW_NO_ANALYTICS: "1"
         run: |
-          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${RUNNER_TEMP}/taffy.rb"
-          ruby -c "${RUNNER_TEMP}/taffy.rb"
+          brew update --quiet
+          brew tap-new --no-git local/taffy
+          tap_dir="$(brew --repository)/Library/Taps/local/homebrew-taffy"
+          mkdir -p "${tap_dir}/Casks"
+          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${tap_dir}/Casks/taffy.rb"
+          brew info --cask local/taffy/taffy 2>&1 | tee "${RUNNER_TEMP}/brew-info.log"
+          if grep -q -i "warning\|error" "${RUNNER_TEMP}/brew-info.log"; then
+            echo "::error::brew が cask について警告を出しました"
+            exit 1
+          fi
+          brew style --cask local/taffy/taffy
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
