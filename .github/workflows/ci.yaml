@@ -5,7 +5,6 @@ on:
   push:
     branches:
       - main
-      - claude/charming-carson-xy95js  # TEMP: verify before PR
   workflow_dispatch:
 
 permissions:
