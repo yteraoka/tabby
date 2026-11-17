@@ -42,7 +42,21 @@ Firefox は AppleScript でタブ一覧を取得する手段がないため非�
 
 日本語入力の変換中は `↩` や矢印キーは IME 側に渡します。クリックでも開けます。
 
-## ビルドとインストール
+## インストール
+
+Homebrew の tap（[`yteraoka/homebrew-cask`](https://github.com/yteraoka/homebrew-cask) の `Casks/tabby.rb`）で配布しています。
+
+```sh
+brew install --cask yteraoka/cask/tabby
+```
+
+- ビルド済みのユニバーサル版（Apple Silicon / Intel、macOS 13 以降）を GitHub Releases から `/Applications/Tabby.app` に入れます
+- アプリは ad-hoc 署名で公証していないため、cask のインストール時に quarantine 属性を外しています
+- Homebrew 本家にも同名の `tabby`（ターミナルアプリ）の cask があるので、必ず `yteraoka/cask/tabby` と tap 名付きで指定してください
+
+アンインストールは `brew uninstall --cask yteraoka/cask/tabby`（設定も消すなら `--zap`）です。
+
+## ソースからのビルド
 
 macOS 13 以降と Swift 5.9 以降（Xcode 15+ もしくは Command Line Tools）が必要です。
 
@@ -54,7 +68,27 @@ make install   # /Applications にコピー
 
 `UNIVERSAL=1 make app` で arm64 + x86_64 のユニバーサルバイナリになります（Xcode が必要）。
 
-GitHub Actions でもビルドしており、各ワークフロー実行の Artifacts から `Tabby.zip` を取得できます。署名はアドホックなので、ダウンロードしたものは初回のみ Finder で右クリック →「開く」で起動してください。
+## リリースの流れ
+
+1. main に PR をマージすると、tagpr（`.github/workflows/tagpr.yaml`）がリリース用の PR を作ります。`Sources/Tabby/Version.swift` のバージョンもこの PR で更新されます（`minor` / `major` ラベルで上げ幅を変えられます）
+2. リリース用の PR をマージすると、tagpr が `vX.Y.Z` のタグと GitHub Release を作ります
+3. タグの push で `.github/workflows/release.yaml`（macOS の runner）が動きます
+   1. `scripts/release.sh` で ad-hoc 署名した `Tabby-X.Y.Z-macos-universal.zip` を作り、Release に添付する
+   2. `scripts/cask.sh` で `packaging/tabby.rb` の version と sha256 を書き換え、tap の `Casks/tabby.rb` を更新する
+4. ブランチへの push では、同じワークフローでビルドだけを行います（Actions の Artifacts から zip を取得できます）
+
+必要な設定（tabby リポジトリの Settings > Secrets and variables > Actions）:
+
+| 種類 | 名前 | 内容 |
+| --- | --- | --- |
+| 変数 | `TAGPR_APP_ID` | tagpr 用の GitHub App の Client ID |
+| シークレット | `TAGPR_APP_PRIVATE_KEY` | 同じ App の秘密鍵 |
+| 変数 | `HOMEBREW_APP_ID` | Release の作成と tap の更新に使う GitHub App の Client ID（Contents: Read and write） |
+| シークレット | `HOMEBREW_APP_PRIVATE_KEY` | 同じ App の秘密鍵 |
+
+どちらの App も tabby にインストールし、`HOMEBREW_APP_ID` の App は `homebrew-cask` にもインストールしておきます。
+
+手元でリリース用の zip を作るときは `make release` を実行し、表示された `scripts/cask.sh <version> <sha256>` で tap に置く cask を出力できます。
 
 ## 権限について
 
@@ -62,7 +96,7 @@ GitHub Actions でもビルドしており、各ワークフロー実行の Arti
 
 拒否してしまった場合や、パネル下部に `not allowed to control this browser` と表示される場合は「システム設定 > プライバシーとセキュリティ > オートメーション」で Tabby の該当ブラウザをオンにしてください。
 
-アドホック署名のまま再ビルドすると macOS が別アプリとみなし、許可を求められ直すことがあります。気になる場合は手元の署名 ID を指定してビルドしてください。
+アドホック署名のため、Homebrew でのアップグレードや再ビルドのたびに macOS が別アプリとみなし、許可を求められ直すことがあります。気になる場合は手元の署名 ID を指定してビルドしてください。
 
 ```sh
 CODESIGN_IDENTITY="Apple Development: Your Name (XXXXXXXXXX)" make app

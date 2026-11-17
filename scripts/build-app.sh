@@ -13,6 +13,7 @@ ARCH_FLAGS=()
 if [[ "${UNIVERSAL:-0}" == "1" ]]; then
   ARCH_FLAGS=(--arch arm64 --arch x86_64)
 fi
+VERSION="$(sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Tabby/Version.swift)"
 
 swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"}
 BIN_DIR="$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
@@ -22,7 +23,10 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/Tabby" "$APP/Contents/MacOS/Tabby"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist"
 
 codesign --force --sign "${CODESIGN_IDENTITY:--}" "$APP"
+codesign --verify --strict --verbose=2 "$APP"
 
-echo "Built $APP"
+echo "Built $APP ($VERSION)"

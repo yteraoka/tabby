@@ -1,6 +1,8 @@
 APP := build/Tabby.app
 
-.PHONY: app run install clean
+VERSION := $(shell sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Tabby/Version.swift)
+
+.PHONY: app run install release clean
 
 app:
 	./scripts/build-app.sh
@@ -13,5 +15,8 @@ install: app
 	cp -R $(APP) /Applications/
 	@echo "Installed /Applications/Tabby.app"
 
+release:
+	./scripts/release.sh $(VERSION)
+
 clean:
-	rm -rf .build build
+	rm -rf .build build dist
