@@ -44,7 +44,6 @@ jobs:
       # 最新の Homebrew で cask を読み込み、非推奨の書き方などの警告が出ないことを確認する
       - name: Check cask template
         env:
-          HOMEBREW_NO_INSTALL_FROM_API: "1"
           HOMEBREW_NO_ANALYTICS: "1"
         run: |
           brew update --quiet
