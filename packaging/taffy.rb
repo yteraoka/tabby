@@ -13,13 +13,15 @@ cask "taffy" do
     skip "Auto-generated on release."
   end
 
-  depends_on macos: ">= :ventura"
+  depends_on macos: :ventura
 
   app "Taffy.app"
 
   # ad-hoc 署名で公証していないため、quarantine 属性を外して Gatekeeper に止められないようにする
-  postflight do
-    system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{appdir}/Taffy.app"]
+  postflight_steps do
+    run "/usr/bin/xattr",
+        args:         ["-dr", "com.apple.quarantine", "{{appdir}}/Taffy.app"],
+        must_succeed: false
   end
 
   uninstall quit: "com.github.yteraoka.taffy"
