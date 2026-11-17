@@ -98,6 +98,19 @@ make install   # /Applications にコピー
 
 `UNIVERSAL=1 make app` で arm64 + x86_64 のユニバーサルバイナリになります（Xcode が必要）。
 
+テストは `swift test`（または `make test`）で実行できます。
+
+## CI
+
+`.github/workflows/ci.yaml` が PR の作成・更新時と main への push で動き、次の 2 つのジョブを実行します。
+
+| ジョブ | 内容 |
+| --- | --- |
+| `test` | `swift test`（検索のスコア、`@` フィルタ、音声 / カメラ状態の判定、ホットキーの解析、AppleScript の生成とコンパイル） |
+| `build` | リリースと同じ手順でユニバーサルな `.app` の zip を作り、cask の構文を確認して、zip を Artifacts に上げる |
+
+Actions タブから手動で実行することもできます。
+
 ## リリースの流れ
 
 1. main に PR をマージすると、tagpr（`.github/workflows/tagpr.yaml`）がリリース用の PR を作ります。`Sources/Taffy/Version.swift` のバージョンもこの PR で更新されます（`minor` / `major` ラベルで上げ幅を変えられます）
@@ -105,7 +118,7 @@ make install   # /Applications にコピー
 3. タグの push で `.github/workflows/release.yaml`（macOS の runner）が動きます
    1. `scripts/release.sh` で ad-hoc 署名した `Taffy-X.Y.Z-macos-universal.zip` を作り、Release に添付する
    2. `scripts/cask.sh` で `packaging/taffy.rb` の version と sha256 を書き換え、tap の `Casks/taffy.rb` を更新する
-4. ブランチへの push では、同じワークフローでビルドだけを行います（Actions の Artifacts から zip を取得できます）
+4. タグでのリリース時も、zip を作る前に `swift test` を実行します
 
 必要な設定（taffy リポジトリの Settings > Secrets and variables > Actions）:
 
