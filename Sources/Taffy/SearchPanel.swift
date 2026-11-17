@@ -127,6 +127,9 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
         case 116: // page up
             model.move(-8)
             return true
+        case 46 where command: // ⌘M
+            model.toggleMediaFilter()
+            return true
         case 51 where command: // ⌘⌫
             model.closeSelected()
             return true

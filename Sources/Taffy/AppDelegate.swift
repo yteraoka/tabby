@@ -11,6 +11,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                                                action: #selector(toggleLaunchAtLogin(_:)),
                                                keyEquivalent: "")
 
+    private let mediaIndicatorsItem = NSMenuItem(title: "Audio & Camera Indicators…",
+                                                 action: #selector(configureMediaIndicators(_:)),
+                                                 keyEquivalent: "")
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         panelController = SearchPanelController()
         registerHotKey()
@@ -56,6 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(searchItem)
         menu.addItem(.separator())
 
+        mediaIndicatorsItem.target = self
+        menu.addItem(mediaIndicatorsItem)
         launchAtLoginItem.target = self
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
@@ -72,11 +78,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        mediaIndicatorsItem.state = MediaScanner.isTrusted ? .on : .off
         launchAtLoginItem.state = SMAppService.mainApp.status == .enabled ? .on : .off
     }
 
     @objc private func showSearch(_ sender: Any?) {
         panelController.show()
+    }
+
+    /// Asks for the Accessibility permission, or opens its settings pane when
+    /// it is already granted (so it can be turned off there).
+    @objc private func configureMediaIndicators(_ sender: NSMenuItem) {
+        if MediaScanner.isTrusted {
+            MediaScanner.openAccessibilitySettings()
+        } else {
+            MediaScanner.requestAccess()
+        }
     }
 
     @objc private func toggleLaunchAtLogin(_ sender: NSMenuItem) {

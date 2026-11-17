@@ -85,6 +85,23 @@ struct SearchView: View {
             Text(model.query.isEmpty
                  ? "\(model.totalCount) tabs"
                  : "\(model.results.count) of \(model.totalCount) tabs")
+            if model.activeMediaCount > 0 {
+                Button {
+                    model.toggleMediaFilter()
+                } label: {
+                    Label("\(model.activeMediaCount) with audio/camera", systemImage: "waveform")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .help("Show only tabs playing audio or using the camera, microphone or screen (⌘M)")
+            } else if !model.mediaIndicatorsAvailable {
+                Button("Enable audio/camera indicators…") {
+                    model.enableMediaIndicators()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.accentColor)
+                .help("Taffy needs the Accessibility permission to see which tabs play audio or use the camera")
+            }
             if let error = model.errors.first {
                 Label(model.errors.count > 1 ? "\(error) (+\(model.errors.count - 1))" : error,
                       systemImage: "exclamationmark.triangle")
@@ -94,7 +111,7 @@ struct SearchView: View {
                     .help(model.errors.joined(separator: "\n"))
             }
             Spacer(minLength: 8)
-            Text("↩ Open   ⌘⌫ Close tab   esc Dismiss")
+            Text("↩ Open   ⌘M Media   ⌘⌫ Close   esc")
         }
         .font(.system(size: 11))
         .foregroundStyle(.secondary)
@@ -124,6 +141,7 @@ private struct TabRow: View {
                     .truncationMode(.middle)
             }
             Spacer(minLength: 8)
+            MediaBadges(media: item.media)
             Text("\(item.browser.name) · W\(item.windowNumber)")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
@@ -149,4 +167,35 @@ private struct VisualEffectBackground: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
+private struct MediaBadges: View {
+    let media: MediaState
+
+    var body: some View {
+        HStack(spacing: 4) {
+            if media.contains(.camera) {
+                badge("video.fill", .red, "Using the camera")
+            }
+            if media.contains(.microphone) {
+                badge("mic.fill", .orange, "Using the microphone")
+            }
+            if media.contains(.screen) {
+                badge("rectangle.inset.filled.on.rectangle", .purple, "Sharing the screen")
+            }
+            if media.contains(.audio) {
+                badge("speaker.wave.2.fill", .blue, "Playing audio")
+            }
+            if media.contains(.muted) {
+                badge("speaker.slash.fill", .secondary, "Muted")
+            }
+        }
+    }
+
+    private func badge(_ symbol: String, _ color: Color, _ help: String) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 12))
+            .foregroundStyle(color)
+            .help(help)
+    }
 }

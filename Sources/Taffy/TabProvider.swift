@@ -41,7 +41,8 @@ struct TabProvider: Sendable {
                 arguments: [browser.bundleID, browser.kind.rawValue],
                 timeout: 30
             )
-            return TabFetchResult(browser: browser, tabs: try parse(output, browser: browser), error: nil)
+            let tabs = MediaScanner.annotate(try parse(output, browser: browser), browser: browser)
+            return TabFetchResult(browser: browser, tabs: tabs, error: nil)
         } catch {
             return TabFetchResult(browser: browser, tabs: [],
                                   error: "\(browser.name): \(error.localizedDescription)")

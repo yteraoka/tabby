@@ -34,6 +34,30 @@ struct Browser: Hashable, Sendable {
     ]
 }
 
+/// Audio / capture state of a tab, read from the browser's tab strip through
+/// the Accessibility API (see MediaScanner).
+struct MediaState: OptionSet, Hashable, Sendable {
+    let rawValue: Int
+
+    static let audio = MediaState(rawValue: 1 << 0)
+    static let muted = MediaState(rawValue: 1 << 1)
+    static let camera = MediaState(rawValue: 1 << 2)
+    static let microphone = MediaState(rawValue: 1 << 3)
+    static let screen = MediaState(rawValue: 1 << 4)
+
+    static let capture: MediaState = [.camera, .microphone, .screen]
+    /// Everything except "muted": the tab is actually doing something.
+    static let active: MediaState = [.audio, .camera, .microphone, .screen]
+
+    /// Sort order for listing: capturing tabs first, then audio, then muted.
+    var priority: Int {
+        if !intersection(.capture).isEmpty { return 0 }
+        if contains(.audio) { return 1 }
+        if contains(.muted) { return 2 }
+        return 3
+    }
+}
+
 struct TabItem: Identifiable, Hashable, Sendable {
     let browser: Browser
     /// The browser's own window id (number or string, kept as text).
@@ -47,6 +71,7 @@ struct TabItem: Identifiable, Hashable, Sendable {
     let title: String
     let url: String
     let isActive: Bool
+    var media: MediaState = []
 
     /// Normalized fields used for matching.
     let searchTitle: String

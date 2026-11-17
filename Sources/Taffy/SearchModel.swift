@@ -13,6 +13,10 @@ final class SearchModel: ObservableObject {
     @Published private(set) var errors: [String] = []
     @Published private(set) var totalCount = 0
     @Published private(set) var hasRunningBrowser = true
+    /// Number of tabs that are playing audio or capturing camera/mic/screen.
+    @Published private(set) var activeMediaCount = 0
+    /// Whether Taffy has the Accessibility permission needed for media indicators.
+    @Published private(set) var mediaIndicatorsAvailable = MediaScanner.isTrusted
     /// Bumped every time the panel is shown so the view can refocus the field.
     @Published private(set) var focusToken = 0
 
@@ -46,6 +50,7 @@ final class SearchModel: ObservableObject {
         let running = Set(browsers.map(\.bundleID))
         tabsByBrowser = tabsByBrowser.filter { running.contains($0.key) }
         errors = []
+        mediaIndicatorsAvailable = MediaScanner.isTrusted
         hasRunningBrowser = !browsers.isEmpty
         rebuild()
 
@@ -75,16 +80,32 @@ final class SearchModel: ObservableObject {
     private func rebuild() {
         allTabs = Browser.all.flatMap { tabsByBrowser[$0.bundleID] ?? [] }
         totalCount = allTabs.count
+        activeMediaCount = allTabs.filter { !$0.media.intersection(.active).isEmpty }.count
         refilter(resetSelection: false)
     }
 
     private func refilter(resetSelection: Bool) {
         let previousID = selectedItem?.id
-        let tokens = FuzzyMatcher.tokens(query)
+        var tokens = FuzzyMatcher.tokens(query)
+        var mediaFilters: [MediaState] = []
+        tokens.removeAll { token in
+            guard let filter = MediaFilter.parse(token) else { return false }
+            mediaFilters.append(filter)
+            return true
+        }
+        let candidates = allTabs.enumerated().filter { _, item in
+            mediaFilters.allSatisfy { !item.media.intersection($0).isEmpty }
+        }
         if tokens.isEmpty {
-            results = allTabs
+            // Tabs using the camera/mic/screen or playing audio come first.
+            results = candidates
+                .sorted { a, b in
+                    let pa = a.element.media.priority, pb = b.element.media.priority
+                    return pa != pb ? pa < pb : a.offset < b.offset
+                }
+                .map { $0.element }
         } else {
-            results = allTabs.enumerated()
+            results = candidates
                 .compactMap { offset, item -> (Int, TabItem, Int)? in
                     guard let score = FuzzyMatcher.score(item, tokens: tokens) else { return nil }
                     return (offset, item, score)
@@ -98,6 +119,20 @@ final class SearchModel: ObservableObject {
             selection = index
         } else {
             selection = min(selection, max(results.count - 1, 0))
+        }
+    }
+
+    /// ⌘M: show only tabs with audio / camera / microphone / screen activity.
+    func toggleMediaFilter() {
+        query = query.hasPrefix(MediaFilter.mediaToken) ? "" : MediaFilter.mediaToken + " "
+    }
+
+    func enableMediaIndicators() {
+        onDismiss?(false)
+        if MediaScanner.isTrusted {
+            MediaScanner.openAccessibilitySettings()
+        } else {
+            MediaScanner.requestAccess()
         }
     }
 
@@ -155,5 +190,31 @@ final class SearchModel: ObservableObject {
         }
         iconCache[browser.bundleID] = image
         return image
+    }
+}
+
+/// `@media`, `@camera`, `@mic`, `@screen`, `@audio`, `@muted` in the query.
+/// A prefix works too (`@cam`), and `@m` matches every filter starting with m.
+enum MediaFilter {
+    static let mediaToken = "@media"
+
+    private static let filters: [(name: String, state: MediaState)] = [
+        ("media", .active),
+        ("camera", .camera),
+        ("video", .camera),
+        ("mic", .microphone),
+        ("microphone", .microphone),
+        ("screen", .screen),
+        ("audio", .audio),
+        ("sound", .audio),
+        ("muted", .muted),
+    ]
+
+    static func parse(_ token: String) -> MediaState? {
+        guard token.hasPrefix("@") else { return nil }
+        let name = token.dropFirst()
+        let matches = filters.filter { $0.name.hasPrefix(name) }
+        guard !matches.isEmpty else { return nil }
+        return matches.reduce(into: MediaState()) { $0.formUnion($1.state) }
     }
 }
