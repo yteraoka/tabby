@@ -5,15 +5,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Tabby</string>
+	<string>Taffy</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.github.yteraoka.tabby</string>
+	<string>com.github.yteraoka.taffy</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Tabby</string>
+	<string>Taffy</string>
 	<key>CFBundleDisplayName</key>
-	<string>Tabby</string>
+	<string>Taffy</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -27,6 +27,6 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Tabby reads the titles and URLs of your browser tabs so you can search them, and switches to the tab you pick.</string>
+	<string>Taffy reads the titles and URLs of your browser tabs so you can search them, and switches to the tab you pick.</string>
 </dict>
 </plist>

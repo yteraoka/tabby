@@ -21,7 +21,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let configured = UserDefaults.standard.string(forKey: "hotkey")
         var spec = configured.flatMap(HotKeySpec.parse)
         if configured != nil && spec == nil {
-            NSLog("Tabby: invalid hotkey %@, falling back to %@", configured!, HotKeySpec.defaultString)
+            NSLog("Taffy: invalid hotkey %@, falling back to %@", configured!, HotKeySpec.defaultString)
         }
         if spec == nil { spec = HotKeySpec.parse(HotKeySpec.defaultString) }
         guard let spec else { return }
@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor in controller.toggle() }
         }
         if hotKey == nil {
-            NSLog("Tabby: could not register hotkey %@ (already in use?)", spec.display)
+            NSLog("Taffy: could not register hotkey %@ (already in use?)", spec.display)
             hotKeyDisplay = ""
         } else {
             hotKeyDisplay = spec.display
@@ -42,9 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "rectangle.stack",
-                                   accessibilityDescription: "Tabby")
+                                   accessibilityDescription: "Taffy")
             button.image?.isTemplate = true
-            button.toolTip = "Tabby"
+            button.toolTip = "Taffy"
         }
 
         let menu = NSMenu()
@@ -60,11 +60,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(launchAtLoginItem)
         menu.addItem(.separator())
 
-        let versionItem = NSMenuItem(title: "Tabby \(TabbyVersion.current)", action: nil, keyEquivalent: "")
+        let versionItem = NSMenuItem(title: "Taffy \(TaffyVersion.current)", action: nil, keyEquivalent: "")
         versionItem.isEnabled = false
         menu.addItem(versionItem)
 
-        let quitItem = NSMenuItem(title: "Quit Tabby", action: #selector(quit(_:)), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: "Quit Taffy", action: #selector(quit(_:)), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 

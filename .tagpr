@@ -4,4 +4,4 @@
 	vPrefix = true
 	releaseBranch = main
 	# タグと同期するバージョン（Info.plist の CFBundleShortVersionString に入る値）
-	versionFile = Sources/Tabby/Version.swift
+	versionFile = Sources/Taffy/Version.swift

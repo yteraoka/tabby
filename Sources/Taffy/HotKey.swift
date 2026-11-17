@@ -78,7 +78,7 @@ final class HotKey {
         )
         guard installStatus == noErr else { return nil }
 
-        let hotKeyID = EventHotKeyID(signature: OSType(0x5442_4259), id: 1) // 'TBBY'
+        let hotKeyID = EventHotKeyID(signature: OSType(0x5441_4659), id: 1) // 'TAFY'
         let registerStatus = RegisterEventHotKey(spec.keyCode, spec.modifiers, hotKeyID,
                                                  GetApplicationEventTarget(), 0, &hotKeyRef)
         guard registerStatus == noErr else {

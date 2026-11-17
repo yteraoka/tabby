@@ -1,7 +1,7 @@
 import AppKit
 
 @main
-enum TabbyApp {
+enum TaffyApp {
     @MainActor
     static func main() {
         let app = NSApplication.shared

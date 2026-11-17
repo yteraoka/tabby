@@ -66,7 +66,7 @@ final class SearchModel: ObservableObject {
         if pending <= 0 { isLoading = false }
         if let error = result.error {
             errors.append(error)
-            NSLog("Tabby: %@", error)
+            NSLog("Taffy: %@", error)
         }
         tabsByBrowser[result.browser.bundleID] = result.tabs
         rebuild()
@@ -119,7 +119,7 @@ final class SearchModel: ObservableObject {
             do {
                 try await provider.activate(item)
             } catch {
-                NSLog("Tabby: failed to activate tab: %@", error.localizedDescription)
+                NSLog("Taffy: failed to activate tab: %@", error.localizedDescription)
                 // The tab list was probably stale; fall back to just bringing the browser forward.
                 NSRunningApplication.runningApplications(withBundleIdentifier: item.browser.bundleID)
                     .first?.activate(options: [])
@@ -139,7 +139,7 @@ final class SearchModel: ObservableObject {
             do {
                 try await provider.close(item)
             } catch {
-                NSLog("Tabby: failed to close tab: %@", error.localizedDescription)
+                NSLog("Taffy: failed to close tab: %@", error.localizedDescription)
             }
             self.reload()
         }

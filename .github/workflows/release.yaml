@@ -25,7 +25,7 @@ jobs:
       - name: Build release zip
         id: build
         run: |
-          version="$(sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Tabby/Version.swift)"
+          version="$(sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Taffy/Version.swift)"
           if [[ "${GITHUB_REF}" == refs/tags/* && "v${version}" != "${GITHUB_REF_NAME}" ]]; then
             echo "::error::タグ ${GITHUB_REF_NAME} と Version.swift の ${version} が一致しません"
             exit 1
@@ -35,17 +35,17 @@ jobs:
 
       - name: Check cask template
         run: |
-          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${RUNNER_TEMP}/tabby.rb"
-          ruby -c "${RUNNER_TEMP}/tabby.rb"
-          cat "${RUNNER_TEMP}/tabby.rb"
+          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${RUNNER_TEMP}/taffy.rb"
+          ruby -c "${RUNNER_TEMP}/taffy.rb"
+          cat "${RUNNER_TEMP}/taffy.rb"
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Tabby
+          name: Taffy
           path: ${{ steps.build.outputs.zip }}
 
-      # GitHub App から一時的なトークンを生成（tabby の Release と tap の更新に使う）
+      # GitHub App から一時的なトークンを生成（taffy の Release と tap の更新に使う）
       - name: Generate Token
         if: startsWith(github.ref, 'refs/tags/')
         id: app-token
@@ -55,7 +55,7 @@ jobs:
           private-key: ${{ secrets.HOMEBREW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
-            tabby
+            taffy
             homebrew-cask
 
       - name: Upload to GitHub Release
@@ -83,15 +83,15 @@ jobs:
           tap_dir="${RUNNER_TEMP}/tap"
           git clone "https://x-access-token:${GH_TOKEN}@github.com/${TAP}.git" "${tap_dir}"
           mkdir -p "${tap_dir}/Casks"
-          scripts/cask.sh "${VERSION}" "${SHA256}" > "${tap_dir}/Casks/tabby.rb"
+          scripts/cask.sh "${VERSION}" "${SHA256}" > "${tap_dir}/Casks/taffy.rb"
           cd "${tap_dir}"
-          if git diff --quiet -- Casks/tabby.rb && ! git ls-files --others --exclude-standard | grep -q .; then
+          if git diff --quiet -- Casks/taffy.rb && ! git ls-files --others --exclude-standard | grep -q .; then
             echo "cask に変更はありません"
             exit 0
           fi
           bot_id="$(gh api "/users/${APP_SLUG}%5Bbot%5D" --jq .id)"
           git config user.name "${APP_SLUG}[bot]"
           git config user.email "${bot_id}+${APP_SLUG}[bot]@users.noreply.github.com"
-          git add Casks/tabby.rb
-          git commit -m "Brew cask update for tabby version v${VERSION}"
+          git add Casks/taffy.rb
+          git commit -m "Brew cask update for taffy version v${VERSION}"
           git push origin HEAD

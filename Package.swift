@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "Tabby",
+    name: "Taffy",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "Tabby",
-            path: "Sources/Tabby"
+            name: "Taffy",
+            path: "Sources/Taffy"
         )
     ]
 )
