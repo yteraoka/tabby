@@ -2,7 +2,7 @@ APP := build/Taffy.app
 
 VERSION := $(shell sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Taffy/Version.swift)
 
-.PHONY: app run install release clean
+.PHONY: app run install release test clean
 
 app:
 	./scripts/build-app.sh
@@ -14,6 +14,9 @@ install: app
 	rm -rf /Applications/Taffy.app
 	cp -R $(APP) /Applications/
 	@echo "Installed /Applications/Taffy.app"
+
+test:
+	swift test
 
 release:
 	./scripts/release.sh $(VERSION)

@@ -1,10 +1,8 @@
 name: Release
 
-# ブランチへの push ではビルドだけを行い、v* タグの push で Release と Homebrew の cask を更新する
+# v* タグの push で Release と Homebrew の cask を更新する（PR でのビルドとテストは ci.yaml）
 on:
   push:
-    branches:
-      - '**'
     tags:
       - 'v*'
 
@@ -21,6 +19,9 @@ jobs:
       - name: Show Swift version
         run: swift --version
 
+      - name: Test
+        run: swift test
+
       # ad-hoc 署名のユニバーサルな zip を作る（Homebrew の cask で配布するため、公証は不要）
       - name: Build release zip
         id: build
@@ -33,21 +34,7 @@ jobs:
           echo "version=${version}" >> "${GITHUB_OUTPUT}"
           scripts/release.sh "${version}"
 
-      - name: Check cask template
-        run: |
-          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${RUNNER_TEMP}/taffy.rb"
-          ruby -c "${RUNNER_TEMP}/taffy.rb"
-          cat "${RUNNER_TEMP}/taffy.rb"
-
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Taffy
-          path: ${{ steps.build.outputs.zip }}
-
-      # GitHub App から一時的なトークンを生成（taffy の Release と tap の更新に使う）
       - name: Generate Token
-        if: startsWith(github.ref, 'refs/tags/')
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
@@ -59,7 +46,6 @@ jobs:
             homebrew-cask
 
       - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           ZIP: ${{ steps.build.outputs.zip }}
@@ -72,7 +58,6 @@ jobs:
           fi
 
       - name: Update Homebrew cask
-        if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           APP_SLUG: ${{ steps.app-token.outputs.app-slug }}

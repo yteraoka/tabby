@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - claude/charming-carson-xy95js  # TEMP: verify before PR
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Test
+        run: swift test
+
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # リリースと同じ手順で、ad-hoc 署名のユニバーサルな zip を作る
+      - name: Build release zip
+        id: build
+        run: |
+          version="$(sed -n 's/.*current = "\(.*\)"/\1/p' Sources/Taffy/Version.swift)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          scripts/release.sh "${version}"
+
+      - name: Check cask template
+        run: |
+          scripts/cask.sh "${{ steps.build.outputs.version }}" "${{ steps.build.outputs.sha256 }}" > "${RUNNER_TEMP}/taffy.rb"
+          ruby -c "${RUNNER_TEMP}/taffy.rb"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Taffy
+          path: ${{ steps.build.outputs.zip }}
