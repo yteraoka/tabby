@@ -1,3 +1,3 @@
 enum TaffyVersion {
-    static let current = "0.0.2"
+    static let current = "0.1.0"
 }
