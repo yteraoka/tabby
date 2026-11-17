@@ -130,9 +130,9 @@ enum Scripts {
             if (selected) { active = j + 1; }
             var last = procs.length > 0 ? procs[procs.length - 1] : '';
             var title = selected && windowName !== '' ? windowName : (custom !== '' ? custom : last);
-            var shortTTY = tty.replace(/^\/dev\//, '');
+            var shortTTY = tty.indexOf('/dev/') === 0 ? tty.substring(5) : tty;
             titles.push(title);
-            urls.push([shortTTY, procs.join(' > ')].filter(function (x) { return x !== ''; }).join(' \u00b7 '));
+            urls.push([shortTTY, procs.join(' > ')].filter(function (x) { return x !== ''; }).join(' · '));
             ids.push('');
             ttys.push(tty === '' ? [] : [tty]);
           }
