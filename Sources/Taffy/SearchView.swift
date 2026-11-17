@@ -11,13 +11,15 @@ struct SearchView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 18))
                     .foregroundStyle(.secondary)
-                TextField("Search tabs", text: $model.query)
+                TextField(model.mode == .terminal ? "Search terminal tabs" : "Search tabs",
+                          text: $model.query)
                     .textFieldStyle(.plain)
                     .font(.system(size: 20))
                     .focused($fieldFocused)
                 if model.isLoading {
                     ProgressView().controlSize(.small)
                 }
+                modePicker
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -38,6 +40,19 @@ struct SearchView: View {
         .onReceive(model.$focusToken) { _ in
             DispatchQueue.main.async { fieldFocused = true }
         }
+    }
+
+    /// Browsers / Terminals switcher. Tab or ⌘1 / ⌘2 does the same.
+    private var modePicker: some View {
+        Picker("", selection: $model.mode) {
+            ForEach(AppCategory.allCases, id: \.self) { mode in
+                Text("\(mode.title) \(model.countByMode[mode] ?? 0)").tag(mode)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .help("Switch between browser and terminal tabs (⇥, ⌘1, ⌘2)")
     }
 
     private var resultList: some View {
@@ -69,8 +84,10 @@ struct SearchView: View {
             Spacer()
             if model.isLoading {
                 Text("Loading tabs…")
-            } else if !model.hasRunningBrowser {
-                Text("No supported browser is running")
+            } else if !model.hasRunningApp {
+                Text(model.mode == .terminal
+                     ? "No supported terminal (Ghostty, Terminal) is running"
+                     : "No supported browser is running")
             } else {
                 Text(model.query.isEmpty ? "No tabs" : "No matching tabs")
             }
@@ -85,7 +102,18 @@ struct SearchView: View {
             Text(model.query.isEmpty
                  ? "\(model.totalCount) tabs"
                  : "\(model.results.count) of \(model.totalCount) tabs")
-            if model.activeMediaCount > 0 {
+            if model.mode == .terminal {
+                if model.claudeCount > 0 {
+                    Button {
+                        model.toggleMediaFilter()
+                    } label: {
+                        Label("\(model.claudeCount) running Claude Code", systemImage: "sparkle")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                    .help("Show only tabs running Claude Code (⌘M)")
+                }
+            } else if model.activeMediaCount > 0 {
                 Button {
                     model.toggleMediaFilter()
                 } label: {
@@ -111,7 +139,9 @@ struct SearchView: View {
                     .help(model.errors.joined(separator: "\n"))
             }
             Spacer(minLength: 8)
-            Text("↩ Open   ⌘M Media   ⌘⌫ Close   esc")
+            Text(model.mode == .terminal
+                 ? "↩ Open   ⌘M Claude   ⇥ Browsers   esc"
+                 : "↩ Open   ⌘M Media   ⌘⌫ Close   ⇥ Terminals   esc")
         }
         .font(.system(size: 11))
         .foregroundStyle(.secondary)
@@ -141,6 +171,12 @@ private struct TabRow: View {
                     .truncationMode(.middle)
             }
             Spacer(minLength: 8)
+            if item.claudeCode {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.orange)
+                    .help("Claude Code is running in this tab")
+            }
             MediaBadges(media: item.media)
             Text("\(item.browser.name) · W\(item.windowNumber)")
                 .font(.system(size: 10))

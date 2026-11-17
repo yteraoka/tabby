@@ -42,16 +42,23 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
         }
     }
 
-    func toggle() {
+    /// `mode`: the hot key for a specific mode (nil: the main hot key, which
+    /// opens the panel in the last used mode). Pressing a mode's hot key while
+    /// the panel shows the other mode switches to it instead of closing.
+    func toggle(mode: AppCategory? = nil) {
         if panel.isVisible {
-            hide(restoreFocus: true)
+            if let mode, mode != model.mode {
+                model.mode = mode
+            } else {
+                hide(restoreFocus: true)
+            }
         } else {
-            show()
+            show(mode: mode)
         }
     }
 
-    func show() {
-        model.prepareForShow()
+    func show(mode: AppCategory? = nil) {
+        model.prepareForShow(mode: mode)
         position()
         NSApp.activate(ignoringOtherApps: true)
         panel.makeKeyAndOrderFront(nil)
@@ -111,6 +118,15 @@ final class SearchPanelController: NSObject, NSWindowDelegate {
         switch event.keyCode {
         case 53: // esc
             hide(restoreFocus: true)
+            return true
+        case 48 where !command: // tab, shift-tab
+            model.toggleMode()
+            return true
+        case 18 where command: // ⌘1
+            model.mode = .browser
+            return true
+        case 19 where command: // ⌘2
+            model.mode = .terminal
             return true
         case 36, 76: // return, keypad enter
             model.activateSelected()
