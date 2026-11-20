@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.2](https://github.com/yteraoka/taffy/compare/v0.2.1...v0.2.2) - 2026-11-20
+
+- アップグレード後にアクセシビリティの許可をリセットする方法を README に追記 by @yteraoka in https://github.com/yteraoka/taffy/pull/17
+
 ## [v0.2.1](https://github.com/yteraoka/taffy/compare/v0.2.0...v0.2.1) - 2026-11-20
 
 - Configure Renovate by @renovate[bot] in https://github.com/yteraoka/taffy/pull/10
