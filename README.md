@@ -66,6 +66,14 @@ Firefox は AppleScript でタブ一覧を取得する手段がないため非�
 
 パネル下部の「Enable audio/camera indicators…」か、メニューバーの「Audio & Camera Indicators…」を選ぶと、システム設定のアクセシビリティの画面が開くので、Taffy をオンにしてください。許可しなくても、タブの検索と切り替えはこれまでどおり使えます。
 
+### Web 会議のタブ（推定）
+
+Chromium 系のブラウザはタブに状態を 1 つしか出さず、Web 会議中は「音声を再生中」が優先されます。そのため Brave や最近の Chrome では、Google Meet のタブがカメラ / マイク使用中として読み取れません。
+
+そこで Taffy は、Mac のどこかでカメラやマイクが使われているかを macOS に問い合わせます（追加の権限は要りません。デバイスを開くわけではありません）。使われているときは、音声を再生中（またはミュート中）の Web 会議サイトのタブに、カメラ / マイクのアイコンを付けます。対象は Google Meet、Zoom、Microsoft Teams、Webex、Whereby、Jitsi Meet、Amazon Chime です（`Sources/Taffy/CaptureInference.swift` の `meetingHosts`）。
+
+推定なので、ほかのアプリ（Zoom アプリなど）がカメラを使っている間に Web 会議のタブが音声を出していると、誤ってアイコンが付きます。マイクと音声出力を兼ねるデバイス（AirPods や USB ヘッドセットなど）では、音声を再生しているだけでもマイク使用中と判定されることがあります。
+
 ### 制限
 
 - 英語と日本語のブラウザ表示で判定しています。ほかの言語では判定できないことがあります

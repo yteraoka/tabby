@@ -74,7 +74,13 @@ enum MediaScanner {
                 result[tabIndex].media = classify(text)
             }
         }
-        return result
+
+        let inUse = CaptureDevices.inUse()
+        if debug {
+            NSLog("Taffy media: devices in use: camera=%d microphone=%d",
+                  inUse.contains(.camera) ? 1 : 0, inUse.contains(.microphone) ? 1 : 0)
+        }
+        return CaptureInference.apply(inUse, to: result)
     }
 
     // MARK: - Classification
