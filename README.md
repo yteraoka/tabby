@@ -122,17 +122,22 @@ tccutil reset Accessibility com.github.yteraoka.taffy
 
 ### Web meeting tabs (inferred)
 
-Chromium-based browsers show only one state per tab, and during a web meeting "playing audio" wins. So in Brave and recent Chrome, a Google Meet tab can't be read as using the camera or microphone.
+Chromium-based browsers show only one state per tab, and during a web meeting "playing audio" wins. So in Brave and recent Chrome, a Google Meet tab can't be read as using the camera or microphone. With vertical tabs (Brave, Edge) or in Arc, the tab bar can't be read at all.
 
-To cover this, Taffy asks macOS whether any app on the Mac is using a camera or microphone (no extra permission is needed, and the devices aren't opened). If one is, tabs on web meeting sites that are playing (or have muted) audio get the camera / microphone icon. Supported sites: Google Meet, Zoom, Microsoft Teams, Webex, Whereby, Jitsi Meet, and Amazon Chime (`meetingHosts` in `Sources/Taffy/CaptureInference.swift`).
+To cover this, Taffy asks macOS whether any app on the Mac is using a camera or microphone (no extra permission is needed, and the devices aren't opened). If one is, meeting tabs get the camera / microphone icon:
 
-This is a guess: if another app (such as the Zoom app) uses the camera while a meeting tab plays audio, the tab gets the icon too. With devices that combine a microphone and speaker (AirPods, USB headsets), just playing audio may count as the microphone being in use.
+- Tabs read from the tab bar: tabs on web meeting sites (Google Meet, Zoom, Microsoft Teams, Webex, Whereby, Jitsi Meet, Amazon Chime) that are playing (or have muted) audio
+- Other tabs (vertical tabs, Arc, or without the Accessibility permission): tabs whose URL is a meeting itself, such as `meet.google.com/abc-defg-hij` or Zoom's web client (`/wc/`). Teams doesn't show a call in its URL, so it isn't detected this way
+
+The sites are defined in `Sources/Taffy/CaptureInference.swift`.
+
+This is a guess: if another app (such as the Zoom app) uses the camera while a meeting tab is open, the tab gets the icon too. With devices that combine a microphone and speaker (AirPods, USB headsets), just playing audio may count as the microphone being in use.
 
 ### Limitations
 
 - Detection works with browsers displayed in English or Japanese. Other languages may not be detected
 - Tabs in windows whose tab bar isn't visible (such as a Safari window with only one tab) or in windows on another Space can't be detected
-- Arc keeps its tabs in the sidebar, so it isn't supported for now
+- Tabs in a sidebar (Arc, vertical tabs in Brave / Edge) can't be read, so only meeting tabs are detected for them ([see above](#web-meeting-tabs-inferred)). Audio and mute aren't shown
 - If icons don't appear, run `defaults write com.github.yteraoka.taffy mediaDebug -bool true` and restart Taffy; the tab information it reads is logged to Console.app (search for `Taffy media`)
 
 ## Permissions

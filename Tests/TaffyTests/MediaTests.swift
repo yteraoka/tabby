@@ -59,9 +59,10 @@ final class MediaFilterTests: XCTestCase {
 }
 
 final class CaptureInferenceTests: XCTestCase {
-    private let brave = Browser(name: "Brave", bundleID: "com.brave.Browser", kind: .chromium)
+    private let brave = Browser.all.first { $0.bundleID == "com.brave.Browser" }!
+    private let meet = "https://meet.google.com/abc-defg-hij"
 
-    private func tab(_ url: String, _ media: MediaState, index: Int = 1) -> TabItem {
+    private func tab(_ url: String, _ media: MediaState = [], index: Int = 1) -> TabItem {
         var tab = TabItem(browser: brave, windowID: "1", windowNumber: 1, tabIndex: index,
                           tabID: nil, title: "t", url: url, isActive: false)
         tab.media = media
@@ -69,7 +70,7 @@ final class CaptureInferenceTests: XCTestCase {
     }
 
     func testMeetingSites() {
-        XCTAssertTrue(CaptureInference.isMeetingSite("https://meet.google.com/abc-defg-hij"))
+        XCTAssertTrue(CaptureInference.isMeetingSite(meet))
         XCTAssertTrue(CaptureInference.isMeetingSite("https://us02web.zoom.us/wc/123/join"))
         XCTAssertTrue(CaptureInference.isMeetingSite("https://teams.microsoft.com/v2/"))
         XCTAssertFalse(CaptureInference.isMeetingSite("https://www.youtube.com/watch?v=1"))
@@ -77,33 +78,62 @@ final class CaptureInferenceTests: XCTestCase {
         XCTAssertFalse(CaptureInference.isMeetingSite("not a url"))
     }
 
-    func testMeetingTabPlayingAudioGetsDevicesInUse() {
-        let tabs = [tab("https://meet.google.com/abc-defg-hij", .audio),
-                    tab("https://www.youtube.com/watch?v=1", .audio, index: 2)]
-        let result = CaptureInference.apply([.camera, .microphone], to: tabs)
+    func testMeetingRooms() {
+        XCTAssertTrue(CaptureInference.isMeetingRoom(meet))
+        XCTAssertTrue(CaptureInference.isMeetingRoom(meet + "?authuser=0"))
+        XCTAssertFalse(CaptureInference.isMeetingRoom("https://meet.google.com/"))
+        XCTAssertFalse(CaptureInference.isMeetingRoom("https://meet.google.com/landing"))
+        XCTAssertTrue(CaptureInference.isMeetingRoom("https://us02web.zoom.us/wc/123/join"))
+        XCTAssertFalse(CaptureInference.isMeetingRoom("https://zoom.us/profile"))
+        XCTAssertTrue(CaptureInference.isMeetingRoom("https://meet.jit.si/MyRoom"))
+        XCTAssertFalse(CaptureInference.isMeetingRoom("https://meet.jit.si/"))
+        XCTAssertFalse(CaptureInference.isMeetingRoom("https://teams.microsoft.com/v2/"))
+    }
+
+    // Tabs read from the tab strip (horizontal tabs).
+
+    func testReadMeetingTabPlayingAudioGetsDevicesInUse() {
+        let tabs = [tab(meet, .audio), tab("https://www.youtube.com/watch?v=1", .audio, index: 2)]
+        let result = CaptureInference.apply([.camera, .microphone], to: tabs, read: [0, 1])
         XCTAssertEqual(result[0].media, [.audio, .camera, .microphone])
         XCTAssertEqual(result[1].media, .audio)
     }
 
-    func testMutedMeetingTab() {
-        let result = CaptureInference.apply(.microphone, to: [tab("https://meet.google.com/x", .muted)])
+    func testReadMutedMeetingTab() {
+        let result = CaptureInference.apply(.microphone, to: [tab(meet, .muted)], read: [0])
         XCTAssertEqual(result[0].media, [.muted, .microphone])
     }
 
-    func testSilentMeetingTabIsLeftAlone() {
-        let result = CaptureInference.apply(.camera, to: [tab("https://meet.google.com/x", [])])
+    func testReadSilentMeetingTabIsLeftAlone() {
+        let result = CaptureInference.apply(.camera, to: [tab(meet)], read: [0])
         XCTAssertEqual(result[0].media, [])
     }
 
-    func testNothingInUse() {
-        let result = CaptureInference.apply([], to: [tab("https://meet.google.com/x", .audio)])
-        XCTAssertEqual(result[0].media, .audio)
+    func testReadTeamsTabPlayingAudio() {
+        let result = CaptureInference.apply(.camera, to: [tab("https://teams.microsoft.com/v2/", .audio)], read: [0])
+        XCTAssertEqual(result[0].media, [.audio, .camera])
     }
 
     func testStateAlreadyReportedByTabStrip() {
-        let tabs = [tab("https://meet.google.com/x", .audio),
-                    tab("https://example.com/", .camera, index: 2)]
-        let result = CaptureInference.apply([.camera, .microphone], to: tabs)
+        let tabs = [tab(meet, .audio), tab("https://example.com/", .camera, index: 2)]
+        let result = CaptureInference.apply([.camera, .microphone], to: tabs, read: [0, 1])
         XCTAssertEqual(result[0].media, [.audio, .microphone])
+    }
+
+    // Tabs the tab strip couldn't be read for (vertical tabs, Arc, no permission).
+
+    func testUnreadMeetingRoomGetsDevicesInUse() {
+        let tabs = [tab(meet), tab("https://meet.google.com/", index: 2),
+                    tab("https://teams.microsoft.com/v2/", index: 3)]
+        let result = CaptureInference.apply([.camera, .microphone], to: tabs, read: [])
+        XCTAssertEqual(result[0].media, [.camera, .microphone])
+        XCTAssertEqual(result[1].media, [])
+        XCTAssertEqual(result[2].media, [])
+    }
+
+    func testNothingInUse() {
+        let result = CaptureInference.apply([], to: [tab(meet, .audio), tab(meet, index: 2)], read: [0])
+        XCTAssertEqual(result[0].media, .audio)
+        XCTAssertEqual(result[1].media, [])
     }
 }

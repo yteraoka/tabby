@@ -7,10 +7,11 @@ import Foundation
 ///
 /// Chromium shows only one alert per tab, and a video call is always playing
 /// audio, so Brave (and recent Chrome) label a Google Meet tab "Audio playing"
-/// rather than "Camera recording". macOS does tell whether *some* app is using
-/// a camera or microphone, so a meeting site tab that plays audio while one is
-/// in use is assumed to be the one using it. This is a guess: another app
-/// using the camera at the same time also lights the tab up.
+/// rather than "Camera recording". And with vertical tabs (Brave, Edge) or in
+/// Arc, the tab strip can't be read at all. macOS does tell whether *some* app
+/// is using a camera or microphone, so a meeting tab is assumed to be the one
+/// using it. This is a guess: another app using the camera at the same time
+/// also lights the tab up.
 enum CaptureInference {
     /// Hosts (and their subdomains) of web meeting services.
     static let meetingHosts = [
@@ -26,26 +27,67 @@ enum CaptureInference {
         "app.chime.aws",
     ]
 
+    private static func components(_ url: String) -> (host: String, path: String)? {
+        guard let parts = URLComponents(string: url), let host = parts.host?.lowercased() else { return nil }
+        return (host, parts.path.lowercased())
+    }
+
+    private static func matches(_ host: String, _ domain: String) -> Bool {
+        host == domain || host.hasSuffix("." + domain)
+    }
+
+    /// Any page of a web meeting service.
     static func isMeetingSite(_ url: String) -> Bool {
-        guard let host = URLComponents(string: url)?.host?.lowercased() else { return false }
-        return meetingHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+        guard let host = components(url)?.host else { return false }
+        return meetingHosts.contains { matches(host, $0) }
+    }
+
+    /// A page that is (most likely) a meeting itself, not the service's home
+    /// page or chat, so it can be trusted without knowing the tab plays audio.
+    static func isMeetingRoom(_ url: String) -> Bool {
+        guard let parts = components(url) else { return false }
+        let (host, path) = (parts.host, parts.path)
+        if matches(host, "meet.google.com") {
+            // Meeting codes look like /abc-defg-hij.
+            return path.range(of: #"^/[a-z]{3,4}-[a-z]{4}-[a-z]{3,4}(/|$)"#, options: .regularExpression) != nil
+        }
+        if matches(host, "zoom.us") || matches(host, "zoom.com") {
+            return path.contains("/wc/")
+        }
+        if matches(host, "webex.com") {
+            return path.contains("/meet/") || path.contains("/wbxmjs/") || path.contains("/webappng/")
+        }
+        if matches(host, "app.chime.aws") {
+            return path.hasPrefix("/meetings/")
+        }
+        if matches(host, "meet.jit.si") || matches(host, "whereby.com") {
+            return path.count > 1
+        }
+        // Teams is a single-page app whose URL doesn't show a call; only the
+        // tab strip (audio) can tell.
+        return false
     }
 
     /// Adds the capture states in `inUse` (camera / microphone being used
-    /// somewhere on the Mac) to meeting site tabs that are playing (or muted)
-    /// audio. A state is only added when no tab of the browser already reports
-    /// it on its own.
-    static func apply(_ inUse: MediaState, to tabs: [TabItem]) -> [TabItem] {
-        let reported = tabs.reduce(into: MediaState()) { $0.formUnion($1.media) }
+    /// somewhere on the Mac) to meeting tabs:
+    /// - tabs whose state was read from the tab strip (`read`): meeting sites
+    ///   that are playing (or muted) audio
+    /// - other tabs: meeting rooms, judged by URL alone
+    /// A state is only added when no tab read from the tab strip already
+    /// reports it.
+    static func apply(_ inUse: MediaState, to tabs: [TabItem], read: Set<Int>) -> [TabItem] {
+        let reported = read.reduce(into: MediaState()) { $0.formUnion(tabs[$1].media) }
         let missing = inUse.intersection([.camera, .microphone]).subtracting(reported)
         guard !missing.isEmpty else { return tabs }
-        return tabs.map { tab in
-            var tab = tab
-            if !tab.media.intersection([.audio, .muted]).isEmpty, isMeetingSite(tab.url) {
-                tab.media.formUnion(missing)
-            }
-            return tab
+        var result = tabs
+        for index in tabs.indices {
+            let tab = tabs[index]
+            let isMeeting = read.contains(index)
+                ? !tab.media.intersection([.audio, .muted]).isEmpty && isMeetingSite(tab.url)
+                : isMeetingRoom(tab.url)
+            if isMeeting { result[index].media.formUnion(missing) }
         }
+        return result
     }
 }
 

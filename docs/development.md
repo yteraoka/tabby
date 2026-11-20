@@ -30,7 +30,7 @@ CODESIGN_IDENTITY="Apple Development: Your Name (XXXXXXXXXX)" make app
 - 起動していないブラウザには問い合わせません（問い合わせるとブラウザが起動してしまうため）
 - タブの切り替えと削除は AppleScript で行います。Chromium 系と Arc はタブ ID でタブを特定するので、一覧取得後にタブが移動していても正しいタブを開きます。Safari にはタブ ID がないため、位置（インデックス）で特定します
 - 音声 / カメラなどの状態は、AppleScript では取得できないため、タブバーの各タブをアクセシビリティ API で読んでいます（Chrome 系はタブの読み上げ名に「- Audio playing」「- Camera recording」などを付け、Safari は音声を出しているタブにミュートボタンを出します）
-- Chromium 系はタブに状態を 1 つしか出さないため、Web 会議中のタブは「Audio playing」になります。そこで `CaptureInference` が、Mac のどこかでカメラ / マイクが使われているか（CoreMediaIO / CoreAudio の "is running somewhere"）を見て、音声を出している Web 会議サイトのタブにその状態を足します
+- Chromium 系はタブに状態を 1 つしか出さないため、Web 会議中のタブは「Audio playing」になります。そこで `CaptureInference` が、Mac のどこかでカメラ / マイクが使われているか（CoreMediaIO / CoreAudio の "is running somewhere"）を見て、Web 会議のタブにその状態を足します。タブバーから読めたタブは「音声を出している Web 会議サイト」、読めなかったタブ（縦型タブ、Arc、許可なし）は「URL が会議そのもの（`isMeetingRoom`）」を条件にします
 - Claude Code の判定は、各タブの tty を AppleScript で取り、`ps` で同じ tty に `claude` のプロセスがいるかを調べます。tty を取れない Ghostty ではタブのタイトルで判定し、作業ディレクトリは `lsof` で Claude Code のプロセスから読みます
 
 ## ブラウザの追加

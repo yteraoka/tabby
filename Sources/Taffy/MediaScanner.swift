@@ -25,22 +25,39 @@ enum MediaScanner {
 
     private static var debug: Bool { UserDefaults.standard.bool(forKey: "mediaDebug") }
 
-    /// Returns `tabs` with `media` filled in, for tabs that could be matched.
+    /// Returns `tabs` with `media` filled in: from the tab strip for tabs that
+    /// could be matched, and guessed for meeting tabs (see CaptureInference).
     static func annotate(_ tabs: [TabItem], browser: Browser) -> [TabItem] {
-        guard isTrusted, !tabs.isEmpty,
-              let pid = NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleID)
-                .first?.processIdentifier
-        else { return tabs }
+        guard !tabs.isEmpty else { return tabs }
+        var result = tabs
+        var read = Set<Int>()
+        if isTrusted,
+           let pid = NSRunningApplication.runningApplications(withBundleIdentifier: browser.bundleID)
+               .first?.processIdentifier {
+            read = readTabStrip(into: &result, browser: browser, pid: pid)
+        }
 
+        let inUse = CaptureDevices.inUse()
+        if debug {
+            NSLog("Taffy media: %@ devices in use: camera=%d microphone=%d, tabs read from the tab strip: %d of %d",
+                  browser.name, inUse.contains(.camera) ? 1 : 0, inUse.contains(.microphone) ? 1 : 0,
+                  read.count, tabs.count)
+        }
+        return CaptureInference.apply(inUse, to: result, read: read)
+    }
+
+    /// Fills in `media` from the tab strip and returns the indices of the tabs
+    /// whose state could be read.
+    private static func readTabStrip(into tabs: inout [TabItem], browser: Browser, pid: pid_t) -> Set<Int> {
         let axWindows = scanWindows(pid: pid)
         if debug {
             for (i, window) in axWindows.enumerated() {
                 NSLog("Taffy media: %@ AX window %d: %@", browser.name, i, window.joined(separator: " || "))
             }
         }
-        guard !axWindows.isEmpty else { return tabs }
+        guard !axWindows.isEmpty else { return [] }
 
-        var result = tabs
+        var read = Set<Int>()
         var usedAXWindows = Set<Int>()
         let windows = Dictionary(grouping: tabs.indices, by: { tabs[$0].windowNumber })
         for (_, indices) in windows {
@@ -71,16 +88,11 @@ enum MediaScanner {
                 if !titles[position].isEmpty {
                     text = text.replacingOccurrences(of: titles[position], with: "")
                 }
-                result[tabIndex].media = classify(text)
+                tabs[tabIndex].media = classify(text)
+                read.insert(tabIndex)
             }
         }
-
-        let inUse = CaptureDevices.inUse()
-        if debug {
-            NSLog("Taffy media: devices in use: camera=%d microphone=%d",
-                  inUse.contains(.camera) ? 1 : 0, inUse.contains(.microphone) ? 1 : 0)
-        }
-        return CaptureInference.apply(inUse, to: result)
+        return read
     }
 
     // MARK: - Classification
