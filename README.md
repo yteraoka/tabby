@@ -114,6 +114,14 @@ Browsers don't expose this state via AppleScript, so Taffy reads the tab bar thr
 
 Choose "Enable audio/camera indicators…" at the bottom of the panel or "Audio & Camera Indicators…" in the menu bar menu to open the Accessibility pane of System Settings, then turn on Taffy. Without this permission, searching and switching tabs still works as usual.
 
+### Web meeting tabs (inferred)
+
+Chromium-based browsers show only one state per tab, and during a web meeting "playing audio" wins. So in Brave and recent Chrome, a Google Meet tab can't be read as using the camera or microphone.
+
+To cover this, Taffy asks macOS whether any app on the Mac is using a camera or microphone (no extra permission is needed, and the devices aren't opened). If one is, tabs on web meeting sites that are playing (or have muted) audio get the camera / microphone icon. Supported sites: Google Meet, Zoom, Microsoft Teams, Webex, Whereby, Jitsi Meet, and Amazon Chime (`meetingHosts` in `Sources/Taffy/CaptureInference.swift`).
+
+This is a guess: if another app (such as the Zoom app) uses the camera while a meeting tab plays audio, the tab gets the icon too. With devices that combine a microphone and speaker (AirPods, USB headsets), just playing audio may count as the microphone being in use.
+
 ### Limitations
 
 - Detection works with browsers displayed in English or Japanese. Other languages may not be detected
