@@ -114,6 +114,12 @@ defaults write com.github.yteraoka.taffy terminalHotkey "ctrl+shift+space"
 
 パネル下部の「Enable audio/camera indicators…」か、メニューバーの「Audio & Camera Indicators…」を選ぶと、システム設定のアクセシビリティの画面が開くので、Taffy をオンにしてください。許可しなくても、タブの検索と切り替えはこれまでどおり使えます。
 
+アドホック署名のため、Homebrew でのアップグレードやビルドし直しのたびに macOS が別アプリとみなし、前の許可が効かなくなります。システム設定では Taffy がオンのまま表示されていても、オフ→オンでは直りません。許可しているのにアイコンが出なくなったときは、Taffy を終了し、一覧から Taffy を「−」で削除（または次のコマンドを実行）してから、Taffy を起動して許可し直してください。
+
+```sh
+tccutil reset Accessibility com.github.yteraoka.taffy
+```
+
 ### Web 会議のタブ（推定）
 
 Chromium 系のブラウザはタブに状態を 1 つしか出さず、Web 会議中は「音声を再生中」が優先されます。そのため Brave や最近の Chrome では、Google Meet のタブがカメラ / マイク使用中として読み取れません。

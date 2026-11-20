@@ -114,6 +114,12 @@ Browsers don't expose this state via AppleScript, so Taffy reads the tab bar thr
 
 Choose "Enable audio/camera indicators…" at the bottom of the panel or "Audio & Camera Indicators…" in the menu bar menu to open the Accessibility pane of System Settings, then turn on Taffy. Without this permission, searching and switching tabs still works as usual.
 
+Because the app is ad-hoc signed, macOS treats each Homebrew upgrade or rebuild as a different app, and the old permission stops applying. System Settings may still show Taffy as on, but turning it off and on again doesn't help. If icons stop appearing even though the permission looks on, quit Taffy, remove Taffy from the list with "−" (or run the command below), then start Taffy and allow it again:
+
+```sh
+tccutil reset Accessibility com.github.yteraoka.taffy
+```
+
 ### Web meeting tabs (inferred)
 
 Chromium-based browsers show only one state per tab, and during a web meeting "playing audio" wins. So in Brave and recent Chrome, a Google Meet tab can't be read as using the camera or microphone.
