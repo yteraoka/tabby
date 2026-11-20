@@ -7,12 +7,29 @@ final class SearchModel: ObservableObject {
             if query != oldValue { refilter(resetSelection: true) }
         }
     }
+    /// Whether the panel searches browser tabs or terminal tabs. Remembered
+    /// across launches; Tab (or ⌘1 / ⌘2) switches it.
+    @Published var mode: AppCategory = SearchModel.savedMode {
+        didSet {
+            guard mode != oldValue else { return }
+            UserDefaults.standard.set(mode.rawValue, forKey: "mode")
+            rebuild()
+            selection = 0
+            focusToken += 1
+        }
+    }
     @Published private(set) var results: [TabItem] = []
     @Published var selection: Int = 0
     @Published private(set) var isLoading = false
     @Published private(set) var errors: [String] = []
+    /// Number of tabs in the current mode.
     @Published private(set) var totalCount = 0
-    @Published private(set) var hasRunningBrowser = true
+    /// Number of tabs per mode (shown on the mode switcher).
+    @Published private(set) var countByMode: [AppCategory: Int] = [:]
+    /// Whether a supported app of the current mode is running.
+    @Published private(set) var hasRunningApp = true
+    /// Terminal tabs running Claude Code.
+    @Published private(set) var claudeCount = 0
     /// Number of tabs that are playing audio or capturing camera/mic/screen.
     @Published private(set) var activeMediaCount = 0
     /// Whether Taffy has the Accessibility permission needed for media indicators.
@@ -27,6 +44,7 @@ final class SearchModel: ObservableObject {
     private let provider = TabProvider()
     private var tabsByBrowser: [String: [TabItem]] = [:]
     private var allTabs: [TabItem] = []
+    private var runningCategories: Set<AppCategory> = []
     private var generation = 0
     private var pending = 0
     private var iconCache: [String: NSImage] = [:]
@@ -35,13 +53,23 @@ final class SearchModel: ObservableObject {
         results.indices.contains(selection) ? results[selection] : nil
     }
 
-    func prepareForShow() {
+    nonisolated private static var savedMode: AppCategory {
+        UserDefaults.standard.string(forKey: "mode").flatMap(AppCategory.init(rawValue:)) ?? .browser
+    }
+
+    /// `mode`: open the panel in this mode (nil keeps the last one).
+    func prepareForShow(mode: AppCategory? = nil) {
         query = ""
+        if let mode { self.mode = mode }
         selection = 0
         focusToken += 1
     }
 
-    /// Re-reads tabs from every running browser. Results from each browser are
+    func toggleMode() {
+        mode = mode.other
+    }
+
+    /// Re-reads tabs from every running browser and terminal. Results from each browser are
     /// shown as soon as they arrive; previously loaded tabs stay visible meanwhile.
     func reload() {
         generation += 1
@@ -51,7 +79,7 @@ final class SearchModel: ObservableObject {
         tabsByBrowser = tabsByBrowser.filter { running.contains($0.key) }
         errors = []
         mediaIndicatorsAvailable = MediaScanner.isTrusted
-        hasRunningBrowser = !browsers.isEmpty
+        runningCategories = Set(browsers.map(\.category))
         rebuild()
 
         pending = browsers.count
@@ -78,9 +106,13 @@ final class SearchModel: ObservableObject {
     }
 
     private func rebuild() {
-        allTabs = Browser.all.flatMap { tabsByBrowser[$0.bundleID] ?? [] }
+        let everything = Browser.all.flatMap { tabsByBrowser[$0.bundleID] ?? [] }
+        countByMode = Dictionary(grouping: everything, by: \.browser.category).mapValues(\.count)
+        allTabs = everything.filter { $0.browser.category == mode }
+        hasRunningApp = runningCategories.contains(mode)
         totalCount = allTabs.count
         activeMediaCount = allTabs.filter { !$0.media.intersection(.active).isEmpty }.count
+        claudeCount = allTabs.filter(\.claudeCode).count
         refilter(resetSelection: false)
     }
 
@@ -88,19 +120,26 @@ final class SearchModel: ObservableObject {
         let previousID = selectedItem?.id
         var tokens = FuzzyMatcher.tokens(query)
         var mediaFilters: [MediaState] = []
+        var claudeOnly = false
         tokens.removeAll { token in
+            if ClaudeFilter.matches(token) {
+                claudeOnly = true
+                return true
+            }
             guard let filter = MediaFilter.parse(token) else { return false }
             mediaFilters.append(filter)
             return true
         }
         let candidates = allTabs.enumerated().filter { _, item in
-            mediaFilters.allSatisfy { !item.media.intersection($0).isEmpty }
+            (!claudeOnly || item.claudeCode)
+                && mediaFilters.allSatisfy { !item.media.intersection($0).isEmpty }
         }
         if tokens.isEmpty {
-            // Tabs using the camera/mic/screen or playing audio come first.
+            // Claude Code tabs and tabs using the camera/mic/screen or playing
+            // audio come first.
             results = candidates
                 .sorted { a, b in
-                    let pa = a.element.media.priority, pb = b.element.media.priority
+                    let pa = a.element.priority, pb = b.element.priority
                     return pa != pb ? pa < pb : a.offset < b.offset
                 }
                 .map { $0.element }
@@ -122,9 +161,16 @@ final class SearchModel: ObservableObject {
         }
     }
 
-    /// ⌘M: show only tabs with audio / camera / microphone / screen activity.
+    /// ⌘M: show only tabs with audio / camera / microphone / screen activity
+    /// (browsers), or only tabs running Claude Code (terminals).
     func toggleMediaFilter() {
-        query = query.hasPrefix(MediaFilter.mediaToken) ? "" : MediaFilter.mediaToken + " "
+        let token = mode == .terminal ? ClaudeFilter.token : MediaFilter.mediaToken
+        query = query.hasPrefix(token) ? "" : token + " "
+    }
+
+    /// Whether ⌘⌫ can close the selected tab (terminal tabs are never closed).
+    var canCloseSelected: Bool {
+        selectedItem.map { $0.browser.category == .browser } ?? false
     }
 
     func enableMediaIndicators() {
@@ -163,7 +209,7 @@ final class SearchModel: ObservableObject {
     }
 
     func closeSelected() {
-        guard let item = selectedItem, !isLoading else { return }
+        guard let item = selectedItem, !isLoading, canCloseSelected else { return }
         // Remove it right away so the list feels responsive, then re-read the
         // real state (tab indices of the remaining tabs shift).
         tabsByBrowser[item.browser.bundleID]?.removeAll { $0.id == item.id }
@@ -190,6 +236,16 @@ final class SearchModel: ObservableObject {
         }
         iconCache[browser.bundleID] = image
         return image
+    }
+}
+
+/// `@claude` (or a prefix down to `@cl`, or `@cc`) in the query: only terminal
+/// tabs running Claude Code.
+enum ClaudeFilter {
+    static let token = "@claude"
+
+    static func matches(_ token: String) -> Bool {
+        token == "@cc" || (token.count >= 3 && self.token.hasPrefix(token))
     }
 }
 

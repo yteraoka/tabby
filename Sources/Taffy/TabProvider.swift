@@ -14,7 +14,7 @@ enum ScriptError: LocalizedError {
         switch self {
         case .failed(let message):
             if message.contains("-1743") {
-                return "not allowed to control this browser (System Settings > Privacy & Security > Automation)"
+                return "not allowed to control this app (System Settings > Privacy & Security > Automation)"
             }
             return message
         case .timedOut:
@@ -23,7 +23,7 @@ enum ScriptError: LocalizedError {
     }
 }
 
-/// Reads and manipulates browser tabs through `osascript`.
+/// Reads and manipulates browser and terminal tabs through `osascript`.
 ///
 /// `osascript` runs in a child process, so several browsers can be queried in
 /// parallel without blocking the UI (NSAppleScript is not safe to use that way).
@@ -36,12 +36,18 @@ struct TabProvider: Sendable {
     func fetch(_ browser: Browser) async -> TabFetchResult {
         do {
             let output = try await OSAScript.run(
-                source: Scripts.fetchTabs,
+                source: Scripts.fetchTabs(for: browser.kind),
                 javaScript: true,
                 arguments: [browser.bundleID, browser.kind.rawValue],
                 timeout: 30
             )
-            let tabs = MediaScanner.annotate(try parse(output, browser: browser), browser: browser)
+            var tabs = try parse(output, browser: browser)
+            switch browser.category {
+            case .browser:
+                tabs = MediaScanner.annotate(tabs, browser: browser)
+            case .terminal:
+                tabs = ClaudeDetector.annotate(tabs)
+            }
             return TabFetchResult(browser: browser, tabs: tabs, error: nil)
         } catch {
             return TabFetchResult(browser: browser, tabs: [],
@@ -55,8 +61,8 @@ struct TabProvider: Sendable {
     }
 
     func close(_ tab: TabItem) async throws {
-        _ = try await OSAScript.run(source: Scripts.close(tab.browser),
-                                    arguments: arguments(for: tab))
+        guard let script = Scripts.close(tab.browser) else { return }
+        _ = try await OSAScript.run(source: script, arguments: arguments(for: tab))
     }
 
     private func arguments(for tab: TabItem) -> [String] {
@@ -69,6 +75,8 @@ struct TabProvider: Sendable {
         let titles: [String]
         let urls: [String]
         let ids: [String]
+        /// Terminals only: the ttys of each tab's terminals.
+        let ttys: [[String]]?
     }
 
     private func parse(_ output: String, browser: Browser) throws -> [TabItem] {
@@ -85,7 +93,10 @@ struct TabProvider: Sendable {
                     tabID: i < window.ids.count && !window.ids[i].isEmpty ? window.ids[i] : nil,
                     title: window.titles[i],
                     url: window.urls[i],
-                    isActive: window.active == i + 1
+                    isActive: window.active == i + 1,
+                    ttys: (window.ttys.map { i < $0.count ? $0[i] : [] } ?? [])
+                        .map(ClaudeDetector.shortTTY)
+                        .filter { !$0.isEmpty }
                 ))
             }
         }
